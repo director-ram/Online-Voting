@@ -239,9 +239,12 @@ def revoke_candidacy(current_user):
 def get_all_candidates():
     """Get all active candidates - Public endpoint, no vote counts shown"""
     try:
+        print("DEBUG: Starting get_all_candidates()")
         candidates = Candidate.get_all()
+        print(f"DEBUG: Got candidates: {candidates}")
         
         if candidates is None or not isinstance(candidates, (list, tuple)):
+            print("DEBUG: No candidates or wrong type, returning empty list")
             return jsonify({'candidates': []}), 200
         
         # Format candidates WITHOUT vote counts (privacy protection)
@@ -267,12 +270,16 @@ def get_all_candidates():
                 candidate_copy.pop('vote_count', None)
                 formatted_candidates.append(candidate_copy)
         
+        print(f"DEBUG: Returning {len(formatted_candidates)} formatted candidates")
         return jsonify({
             'candidates': formatted_candidates
         }), 200
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"ERROR in get_all_candidates: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 
 @candidate_bp.route('', methods=['GET'])
