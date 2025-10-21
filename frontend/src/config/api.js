@@ -1,5 +1,5 @@
 // API Configuration for Production Deployment
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://online-voting-3plz.onrender.com';
 
 export const API_BASE_URL = API_URL;
 
