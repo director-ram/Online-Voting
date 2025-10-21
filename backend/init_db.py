@@ -17,13 +17,23 @@ def init_database():
     try:
         # Connect to PostgreSQL
         print("📡 Connecting to database...")
-        conn = psycopg2.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_NAME
-        )
+        
+        # Check if DATABASE_URL is provided (cloud deployment)
+        database_url = os.getenv('DATABASE_URL')
+        
+        if database_url:
+            # Use DATABASE_URL with SSL for cloud platforms (Render, Heroku, etc.)
+            conn = psycopg2.connect(database_url, sslmode='require')
+        else:
+            # Use individual parameters for local development
+            conn = psycopg2.connect(
+                host=Config.DB_HOST,
+                port=Config.DB_PORT,
+                user=Config.DB_USER,
+                password=Config.DB_PASSWORD,
+                database=Config.DB_NAME
+            )
+        
         conn.autocommit = True
         cursor = conn.cursor()
         print("✅ Connected successfully!\n")

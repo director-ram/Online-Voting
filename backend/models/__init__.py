@@ -10,8 +10,8 @@ def get_db_connection():
 	database_url = os.getenv('DATABASE_URL')
 	
 	if database_url:
-		# Use DATABASE_URL if provided (Render, Heroku, etc.)
-		connection = psycopg2.connect(database_url)
+		# Use DATABASE_URL with SSL for cloud platforms (Render, Heroku, etc.)
+		connection = psycopg2.connect(database_url, sslmode='require')
 	else:
 		# Fall back to individual parameters for local development
 		connection = psycopg2.connect(
