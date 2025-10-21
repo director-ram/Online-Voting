@@ -1,0 +1,31 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: voting-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DEBUG
+        value: False
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: voting-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "*"
+    healthCheckPath: /api/candidates
+
+databases:
+  # PostgreSQL Database
+  - name: voting-db
+    databaseName: voting_system
+    user: voting_user

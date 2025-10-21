@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ThreeBackground from '../components/ThreeBackground';
+import { getImageUrl } from '../config/api';
 
 export default function Vote() {
   const navigate = useNavigate();
@@ -165,7 +166,7 @@ export default function Vote() {
                   <div style={styles.candidatePhoto}>
                     {candidate.profile_pic ? (
                       <img 
-                        src={candidate.profile_pic} 
+                        src={getImageUrl(candidate.profile_pic)} 
                         alt={candidate.name}
                         style={styles.photoImg}
                       />

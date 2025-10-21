@@ -3,6 +3,17 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://online-voting-3plz.onre
 
 export const API_BASE_URL = API_URL;
 
+// Helper function to get full image URL
+export const getImageUrl = (path) => {
+  if (!path) return null;
+  // If path already starts with http, return as is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  // Otherwise, prepend the backend URL
+  return `${API_BASE_URL}${path}`;
+};
+
 // Helper function for API calls
 export const apiCall = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -40,4 +51,4 @@ export const apiCall = async (endpoint, options = {}) => {
   }
 };
 
-export default { API_BASE_URL, apiCall };
+export default { API_BASE_URL, apiCall, getImageUrl };

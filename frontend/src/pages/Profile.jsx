@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Navbar from '../components/Navbar';
 import ThreeBackground from '../components/ThreeBackground';
+import { getImageUrl } from '../config/api';
 
 const DEFAULT_AVATAR = '/default-avatar.svg';
 
@@ -420,7 +421,7 @@ export default function Profile() {
     return 'Select your date of birth';
   };
 
-  const avatarSrc = preview || (user?.profile_pic || candidateStatus?.candidate?.profile_pic || DEFAULT_AVATAR);
+  const avatarSrc = preview || getImageUrl(user?.profile_pic || candidateStatus?.candidate?.profile_pic) || DEFAULT_AVATAR;
 
   const styles = {
     pageContainer: {

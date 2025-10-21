@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ThreeBackground from '../components/ThreeBackground';
+import { getImageUrl } from '../config/api';
 
 // Realistic Fireworks Component
 const Fireworks = ({ isActive }) => {
@@ -350,7 +351,7 @@ export default function Results() {
                             <div style={styles.resultPhoto}>
                               {candidate.profile_pic ? (
                                 <img 
-                                  src={candidate.profile_pic} 
+                                  src={getImageUrl(candidate.profile_pic)} 
                                   alt={candidate.name}
                                   style={styles.photoImg}
                                 />
