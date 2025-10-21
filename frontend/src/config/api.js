@@ -6,10 +6,18 @@ export const API_BASE_URL = API_URL;
 // Helper function to get full image URL
 export const getImageUrl = (path) => {
   if (!path) return null;
-  // If path already starts with http, return as is
+  
+  // If path already starts with http, check if it's an old Railway URL
   if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Replace old Railway URL with current Render URL
+    if (path.includes('railway.app')) {
+      // Extract just the path part after the domain
+      const pathPart = path.substring(path.indexOf('/uploads'));
+      return `${API_BASE_URL}${pathPart}`;
+    }
     return path;
   }
+  
   // Otherwise, prepend the backend URL
   return `${API_BASE_URL}${path}`;
 };
