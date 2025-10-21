@@ -1,17 +1,26 @@
 import psycopg2
 import psycopg2.extras
 from config import Config
+import os
 
 
 def get_db_connection():
 	"""Create and return a PostgreSQL database connection"""
-	connection = psycopg2.connect(
-		host=Config.DB_HOST,
-		user=Config.DB_USER,
-		password=Config.DB_PASSWORD,
-		dbname=Config.DB_NAME,
-		port=Config.DB_PORT
-	)
+	# Check if DATABASE_URL is provided (used by cloud platforms like Render)
+	database_url = os.getenv('DATABASE_URL')
+	
+	if database_url:
+		# Use DATABASE_URL if provided (Render, Heroku, etc.)
+		connection = psycopg2.connect(database_url)
+	else:
+		# Fall back to individual parameters for local development
+		connection = psycopg2.connect(
+			host=Config.DB_HOST,
+			user=Config.DB_USER,
+			password=Config.DB_PASSWORD,
+			dbname=Config.DB_NAME,
+			port=Config.DB_PORT
+		)
 	return connection
 
 
