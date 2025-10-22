@@ -2,13 +2,20 @@ from flask import Blueprint, request, jsonify
 from models.vote_model import Vote
 from models.candidate_model import Candidate
 from .auth_routes import token_required
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 voter_bp = Blueprint('voters', __name__)
 
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_ist_time():
+    """Get current time in IST (Indian Standard Time)"""
+    return datetime.now(IST)
+
 def is_voting_open():
-    """Check if voting is currently allowed (8 AM to 8 PM)"""
-    now = datetime.now()
+    """Check if voting is currently allowed (8 AM to 8 PM IST)"""
+    now = get_ist_time()
     current_hour = now.hour
     # Voting allowed between 8 AM (08:00) and 8 PM (20:00)
     return 8 <= current_hour < 20
@@ -20,10 +27,10 @@ def cast_vote(current_user):
     try:
         # Check if voting is open
         if not is_voting_open():
-            now = datetime.now()
+            now = get_ist_time()
             current_time = now.strftime('%I:%M %p')
             return jsonify({
-                'error': f'Voting is closed. Voting hours are 8:00 AM to 8:00 PM. Current time: {current_time}'
+                'error': f'Voting is closed. Voting hours are 8:00 AM to 8:00 PM IST. Current time: {current_time}'
             }), 403
         
         # Extract user ID from dict or tuple
@@ -155,9 +162,9 @@ def get_my_vote(current_user):
 @voter_bp.route('/voting-status', methods=['GET'])
 def get_voting_status():
     """Get current voting status (open/closed) and time information"""
-    now = datetime.now()
+    now = get_ist_time()
     current_hour = now.hour
-    current_time = now.strftime('%I:%M %p')
+    current_time = now.strftime('%I:%M %p IST')
     is_open = is_voting_open()
     
     # Calculate time remaining or time until opening
@@ -184,8 +191,8 @@ def get_voting_status():
     return jsonify({
         'is_open': is_open,
         'current_time': current_time,
-        'voting_hours': '8:00 AM - 8:00 PM',
+        'voting_hours': '8:00 AM - 8:00 PM IST',
         'message': message,
-        'opens_at': '8:00 AM',
-        'closes_at': '8:00 PM'
+        'opens_at': '8:00 AM IST',
+        'closes_at': '8:00 PM IST'
     }), 200
