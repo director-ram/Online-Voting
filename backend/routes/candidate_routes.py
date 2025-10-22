@@ -3,6 +3,14 @@ from models.candidate_model import Candidate
 from .auth_routes import token_required
 import os
 from werkzeug.utils import secure_filename
+from datetime import datetime, timedelta, timezone
+
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_ist_time():
+    """Get current time in IST (Indian Standard Time)"""
+    return datetime.now(IST)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'profiles')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -293,12 +301,11 @@ def get_results():
     """Get voting results with vote counts - Public endpoint after voting ends"""
     try:
         from models import execute_query
-        from datetime import datetime
         
-        # Check if voting has ended (after 8 PM)
-        now = datetime.now()
+        # Check if voting has ended (after 8 PM IST)
+        now = get_ist_time()
         current_hour = now.hour
-        is_finalized = current_hour >= 20 or current_hour < 8  # After 8 PM or before 8 AM
+        is_finalized = current_hour >= 20 or current_hour < 8  # After 8 PM or before 8 AM IST
         
         # Get ALL candidates (including inactive) to check if winner revoked
         all_candidates_query = """
@@ -412,9 +419,9 @@ def get_results():
             if previous_winner_revoked and revoked_winner_info:
                 voting_status = f"Voting has ended for today. Original winner {revoked_winner_info['name']} ({revoked_winner_info['vote_count']} votes) withdrew from candidacy. Winner recalculated from remaining candidates."
             else:
-                voting_status = 'Voting has ended for today. Results are final. Come back tomorrow for a new vote!'
+                voting_status = 'Voting has ended for today (8:00 PM IST). Results are final. Come back tomorrow at 8:00 AM IST for a new vote!'
         else:
-            voting_status = 'Voting is currently in progress for today.'
+            voting_status = 'Voting is currently in progress. Vote now before 8:00 PM IST!'
         
         return jsonify({
             'results': formatted_results,
