@@ -354,6 +354,10 @@ export default function Results() {
                                   src={getImageUrl(candidate.profile_pic)} 
                                   alt={candidate.name}
                                   style={styles.photoImg}
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.parentElement.innerHTML = `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; color: white; font-size: 2rem; font-weight: bold;">${candidate.name?.charAt(0) || '?'}</div>`;
+                                  }}
                                 />
                               ) : (
                                 <div style={styles.photoPlaceholder}>
