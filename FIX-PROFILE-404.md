@@ -8,7 +8,44 @@ Clear old profile picture paths from database so users can re-upload with Cloudi
 
 ---
 
-## Option 1: Run SQL on Render Dashboard (RECOMMENDED)
+## Option 1: Run Python Script (EASIEST - RECOMMENDED)
+
+Since Render doesn't show a Shell tab for your database, use this Python script instead:
+
+### Steps:
+
+1. **Get your Database URL from Render:**
+   - Go to: https://dashboard.render.com/
+   - Click on your **PostgreSQL database** (voting-db)
+   - Look for **"Internal Database URL"** or **"External Database URL"**
+   - Click the **Copy** icon 📋 next to it
+   - It looks like: `postgresql://user:pass@dpg-xxxxx.oregon-postgres.render.com/dbname`
+
+2. **Run the cleanup script:**
+   Open terminal in VS Code and run:
+   ```powershell
+   cd backend
+   C:\Users\khema\AppData\Local\Programs\Python\Python312\python.exe clean_db.py "PASTE_YOUR_DATABASE_URL_HERE"
+   ```
+   
+   Replace `PASTE_YOUR_DATABASE_URL_HERE` with the URL you copied.
+
+3. **Expected output:**
+   ```
+   📡 Connecting to database...
+   ✅ Connected successfully!
+   
+   📋 Checking users table...
+      Found 1 users with old paths:
+      • User 1 (user@email.com): /uploads/profiles/1_dark-naruto-1n.jpg
+      ✅ Cleaned 1 old paths from users
+   
+   ✅ DATABASE CLEANED SUCCESSFULLY!
+   ```
+
+---
+
+## Option 2: Run SQL on Render Dashboard
 
 ### Steps:
 

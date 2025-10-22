@@ -22,7 +22,8 @@ try:
             
             # Count rows in each table
             cur.execute(f"SELECT COUNT(*) FROM {table[0]}")
-            count = cur.fetchone()[0]
+            result = cur.fetchone()
+            count = result[0] if result else 0
             print(f"    ({count} rows)")
     else:
         print("  ⚠️  NO TABLES FOUND!")

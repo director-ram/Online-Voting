@@ -76,7 +76,7 @@ if ($backendRunning) {
 }
 
 # Start backend in background
-$backendJob = Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$PWD\backend'; if (Test-Path 'venv\Scripts\Activate.ps1') { .\venv\Scripts\Activate.ps1 }; python app.py" -PassThru -WindowStyle Minimized
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$PWD\backend'; if (Test-Path 'venv\Scripts\Activate.ps1') { .\venv\Scripts\Activate.ps1 }; python app.py" -WindowStyle Minimized
 
 Start-Sleep -Seconds 5
 
