@@ -4,6 +4,7 @@ from .auth_routes import token_required
 import os
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
+from utils.cloudinary_config import upload_image_to_cloudinary
 
 # IST timezone (UTC+5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -60,17 +61,15 @@ def apply_as_candidate(current_user):
         if not gender:
             return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Gender is required'}}), 400
         
-        # Handle profile picture upload
+        # Handle profile picture upload to Cloudinary
         profile_pic_path = None
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
             if file and file.filename and allowed_file(file.filename):
-                # Create unique filename
-                filename = secure_filename(f"{current_user_id}_{file.filename}")
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
-                file.save(filepath)
-                # Store relative path
-                profile_pic_path = f"/uploads/profiles/{filename}"
+                # Upload to Cloudinary
+                upload_result = upload_image_to_cloudinary(file, folder="voting-system/profiles")
+                if upload_result:
+                    profile_pic_path = upload_result['url']
         
         # Check if user already has a candidate record (active or inactive)
         check_query = "SELECT id, is_active FROM candidates WHERE user_id = %s"

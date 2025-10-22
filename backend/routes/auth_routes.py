@@ -6,6 +6,7 @@ from functools import wraps
 import jwt
 import os
 from werkzeug.utils import secure_filename
+from utils.cloudinary_config import upload_image_to_cloudinary
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -208,12 +209,14 @@ def upload_profile_picture(current_user):
 	if not _allowed_file(file.filename):
 		return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Unsupported file type'}}), 400
 
-	# Create unique filename per user
-	filename = secure_filename(f"user_{user_id}_{int(datetime.utcnow().timestamp())}_{file.filename}")
-	filepath = os.path.join(UPLOAD_FOLDER, filename)
-	file.save(filepath)
-
-	public_path = f"/uploads/profiles/{filename}"
+	# Upload to Cloudinary instead of local filesystem
+	upload_result = upload_image_to_cloudinary(file, folder="voting-system/profiles")
+	
+	if not upload_result:
+		return jsonify({'error': {'code': 'UPLOAD_ERROR', 'message': 'Failed to upload image to cloud storage'}}), 500
+	
+	# Get the secure URL from Cloudinary
+	public_path = upload_result['url']
 
 	# Try to persist in users.profile_pic if the column exists
 	persisted = User.update_profile_pic(user_id, public_path)
