@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ThreeBackground from '../components/ThreeBackground';
 import AnimatedLoginHint from '../components/AnimatedLoginHint';
+import ServerWakeUpTimer from '../components/ServerWakeUpTimer';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function Login() {
   });
   const [error, setError] = useState('');
   const [showRegisterHint, setShowRegisterHint] = useState(false);
+  const [showServerWakeUp, setShowServerWakeUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
@@ -131,38 +133,50 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setShowRegisterHint(false);
+    setShowServerWakeUp(false);
     setLoading(true);
 
     try {
       if (isLogin) {
         // LOGIN - No validation for login (user may have old password)
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password
-          })
-        });
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: formData.email,
+              password: formData.password
+            })
+          });
 
-        const data = await response.json();
+          const data = await response.json();
 
-        if (!response.ok) {
-          const errorMsg = data.error?.message || data.error || 'Login failed';
-          const errorCode = data.error?.code;
-          
-          // Show animated hint if user not found
-          if (errorCode === 'USER_NOT_FOUND') {
-            setShowRegisterHint(true);
-            setError(''); // Don't show generic error when we're showing the hint
-          } else {
-            throw new Error(errorMsg);
+          if (!response.ok) {
+            const errorMsg = data.error?.message || data.error || 'Login failed';
+            const errorCode = data.error?.code;
+            
+            // Show animated hint if user not found
+            if (errorCode === 'USER_NOT_FOUND') {
+              setShowRegisterHint(true);
+              setError(''); // Don't show generic error when we're showing the hint
+              return;
+            } else {
+              throw new Error(errorMsg);
+            }
           }
-          return;
-        }
 
-        localStorage.setItem('accessToken', data.accessToken);
-        navigate('/home');
+          localStorage.setItem('accessToken', data.accessToken);
+          navigate('/home');
+        } catch (fetchError) {
+          // Check if it's a network error or 504 (server waking up)
+          if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+            // Network error - likely 504 Gateway Timeout
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          }
+          throw fetchError;
+        }
         
       } else {
         // REGISTER - Full validation
@@ -210,6 +224,45 @@ export default function Login() {
     }
   };
 
+  // Handle server ready event from timer
+  const handleServerReady = async () => {
+    setShowServerWakeUp(false);
+    setLoading(true);
+    
+    // Retry the login automatically
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error?.message || data.error || 'Login failed';
+        const errorCode = data.error?.code;
+        
+        if (errorCode === 'USER_NOT_FOUND') {
+          setShowRegisterHint(true);
+        } else {
+          throw new Error(errorMsg);
+        }
+        return;
+      }
+
+      localStorage.setItem('accessToken', data.accessToken);
+      navigate('/home');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -243,6 +296,11 @@ export default function Login() {
           <div style={styles.error}>
             ❌ {error}
           </div>
+        )}
+
+        {/* Server wake-up timer (for Render cold starts) */}
+        {showServerWakeUp && isLogin && (
+          <ServerWakeUpTimer onServerReady={handleServerReady} />
         )}
 
         {/* Animated hint when user not found */}
