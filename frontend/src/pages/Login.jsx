@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ThreeBackground from '../components/ThreeBackground';
+import AnimatedLoginHint from '../components/AnimatedLoginHint';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function Login() {
     confirmPassword: ''
   });
   const [error, setError] = useState('');
+  const [showRegisterHint, setShowRegisterHint] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
@@ -128,6 +130,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setShowRegisterHint(false);
     setLoading(true);
 
     try {
@@ -146,7 +149,16 @@ export default function Login() {
 
         if (!response.ok) {
           const errorMsg = data.error?.message || data.error || 'Login failed';
-          throw new Error(errorMsg);
+          const errorCode = data.error?.code;
+          
+          // Show animated hint if user not found
+          if (errorCode === 'USER_NOT_FOUND') {
+            setShowRegisterHint(true);
+            setError(''); // Don't show generic error when we're showing the hint
+          } else {
+            throw new Error(errorMsg);
+          }
+          return;
         }
 
         localStorage.setItem('accessToken', data.accessToken);
@@ -231,6 +243,17 @@ export default function Login() {
           <div style={styles.error}>
             ❌ {error}
           </div>
+        )}
+
+        {/* Animated hint when user not found */}
+        {showRegisterHint && isLogin && (
+          <AnimatedLoginHint 
+            onRegisterClick={() => {
+              setIsLogin(false);
+              setShowRegisterHint(false);
+              setError('');
+            }}
+          />
         )}
 
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -363,6 +386,7 @@ export default function Login() {
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
+              setShowRegisterHint(false);
               setFormData({
                 email: '',
                 password: '',

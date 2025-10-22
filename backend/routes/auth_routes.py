@@ -98,7 +98,8 @@ def login():
 		user = User.find_by_email(data['email'])
 		print(f"✅ User found: {user is not None}")
 		if not user:
-			return jsonify({'error': {'code': 'INVALID_CREDENTIALS', 'message': 'Invalid credentials'}}), 401
+			# Return a clear error code so frontend can show a friendly, themed message
+			return jsonify({'error': {'code': 'USER_NOT_FOUND', 'message': 'No account found with this email'}}), 401
 
 		# Handle different return types (dict or tuple/list)
 		if isinstance(user, dict):
