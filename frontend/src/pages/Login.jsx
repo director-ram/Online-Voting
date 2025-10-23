@@ -197,6 +197,80 @@ export default function Login() {
           throw new Error('Passwords do not match');
         }
 
+        try {
+          const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: formData.name,
+              email: formData.email,
+              password: formData.password
+            })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            const errorMsg = data.error?.message || data.error || 'Registration failed';
+            throw new Error(errorMsg);
+          }
+
+          localStorage.setItem('accessToken', data.accessToken);
+          navigate('/home');
+        } catch (fetchError) {
+          // Check if it's a network error or 504 (server waking up)
+          if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+            // Network error - likely 504 Gateway Timeout
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          }
+          throw fetchError;
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle server ready event from timer
+  const handleServerReady = async () => {
+    setShowServerWakeUp(false);
+    setLoading(true);
+    
+    // Retry the login or registration automatically based on current mode
+    try {
+      if (isLogin) {
+        // Retry LOGIN
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          const errorMsg = data.error?.message || data.error || 'Login failed';
+          const errorCode = data.error?.code;
+          
+          if (errorCode === 'USER_NOT_FOUND') {
+            setShowRegisterHint(true);
+          } else {
+            throw new Error(errorMsg);
+          }
+          return;
+        }
+
+        localStorage.setItem('accessToken', data.accessToken);
+        navigate('/home');
+      } else {
+        // Retry REGISTRATION
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,45 +291,6 @@ export default function Login() {
         localStorage.setItem('accessToken', data.accessToken);
         navigate('/home');
       }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle server ready event from timer
-  const handleServerReady = async () => {
-    setShowServerWakeUp(false);
-    setLoading(true);
-    
-    // Retry the login automatically
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = data.error?.message || data.error || 'Login failed';
-        const errorCode = data.error?.code;
-        
-        if (errorCode === 'USER_NOT_FOUND') {
-          setShowRegisterHint(true);
-        } else {
-          throw new Error(errorMsg);
-        }
-        return;
-      }
-
-      localStorage.setItem('accessToken', data.accessToken);
-      navigate('/home');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -298,8 +333,8 @@ export default function Login() {
           </div>
         )}
 
-        {/* Server wake-up timer (for Render cold starts) */}
-        {showServerWakeUp && isLogin && (
+        {/* Server wake-up timer (for Render cold starts) - works for both login and registration */}
+        {showServerWakeUp && (
           <ServerWakeUpTimer onServerReady={handleServerReady} />
         )}
 
