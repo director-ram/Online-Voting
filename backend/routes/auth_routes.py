@@ -425,3 +425,17 @@ def _oauth_popup_response(success: bool, message: Optional[str] = None, token: O
 		resp = make_response(html)
 		resp.headers['Content-Type'] = 'text/html; charset=utf-8'
 		return resp
+
+# Debug endpoint to check OAuth configuration
+@auth_bp.route('/google/debug', methods=['GET'])
+def google_debug():
+	"""Debug endpoint to verify OAuth configuration"""
+	return jsonify({
+		'google_enabled': _google_enabled(),
+		'client_id': Config.GOOGLE_CLIENT_ID[:20] + '...' if Config.GOOGLE_CLIENT_ID else None,
+		'redirect_uri': Config.GOOGLE_REDIRECT_URI,
+		'backend_base_url': Config.BACKEND_BASE_URL,
+		'frontend_base_url': Config.FRONTEND_BASE_URL,
+		'render_external_url': os.getenv('RENDER_EXTERNAL_URL'),
+		'message': 'Check if redirect_uri uses HTTPS'
+	}), 200
