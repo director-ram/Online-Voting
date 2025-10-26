@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, redirect, make_response
 from models.user_model import User
 from config import Config
 from datetime import datetime
@@ -7,6 +7,8 @@ import jwt
 import os
 from werkzeug.utils import secure_filename
 from utils.cloudinary_config import upload_image_to_cloudinary
+import secrets
+import requests
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -252,3 +254,174 @@ def update_profile(current_user):
 	return jsonify({ 'updated': results }), 200
 
 __all__ = ["token_required", "auth_bp"]
+
+# ------------------ GOOGLE OAUTH 2.0 ------------------
+
+GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+
+def _google_enabled():
+	return bool(Config.GOOGLE_CLIENT_ID and Config.GOOGLE_CLIENT_SECRET and Config.GOOGLE_REDIRECT_URI)
+
+@auth_bp.route('/google/start', methods=['GET'])
+def google_start():
+	"""Start Google OAuth flow by redirecting to Google's consent screen."""
+	if not _google_enabled():
+		return jsonify({'error': {'code': 'OAUTH_NOT_CONFIGURED', 'message': 'Google OAuth not configured'}}), 400
+
+	scope = 'openid email profile'
+	state = secrets.token_urlsafe(16)  # Optionally validate via client later
+	params = {
+		'client_id': Config.GOOGLE_CLIENT_ID,
+		'redirect_uri': Config.GOOGLE_REDIRECT_URI,
+		'response_type': 'code',
+		'scope': scope,
+		'access_type': 'online',
+		'include_granted_scopes': 'true',
+		'prompt': 'select_account',
+		'state': state,
+	}
+	# Build URL
+	from urllib.parse import urlencode
+	url = f"{GOOGLE_AUTH_BASE}?{urlencode(params)}"
+	return redirect(url, code=302)
+
+@auth_bp.route('/google/callback', methods=['GET'])
+def google_callback():
+	"""Handle OAuth callback: exchange code, fetch profile, upsert user, issue JWT, and postMessage to opener."""
+	if not _google_enabled():
+		return jsonify({'error': {'code': 'OAUTH_NOT_CONFIGURED', 'message': 'Google OAuth not configured'}}), 400
+
+	error = request.args.get('error')
+	if error:
+		return _oauth_popup_response(success=False, message=error)
+
+	code = request.args.get('code')
+	if not code:
+		return _oauth_popup_response(success=False, message='Missing authorization code')
+
+	try:
+		# Exchange code for tokens
+		data = {
+			'code': code,
+			'client_id': Config.GOOGLE_CLIENT_ID,
+			'client_secret': Config.GOOGLE_CLIENT_SECRET,
+			'redirect_uri': Config.GOOGLE_REDIRECT_URI,
+			'grant_type': 'authorization_code'
+		}
+		token_resp = requests.post(GOOGLE_TOKEN_URL, data=data, timeout=10)
+		token_resp.raise_for_status()
+		tokens = token_resp.json()
+		access_token = tokens.get('access_token')
+		if not access_token:
+			return _oauth_popup_response(success=False, message='No access token from Google')
+
+		# Fetch userinfo
+		userinfo_resp = requests.get(GOOGLE_USERINFO_URL, headers={'Authorization': f'Bearer {access_token}'}, timeout=10)
+		userinfo_resp.raise_for_status()
+		info = userinfo_resp.json()
+
+		email = info.get('email')
+		name = info.get('name') or (info.get('given_name') or 'New User')
+		picture = info.get('picture')
+		if not email:
+			return _oauth_popup_response(success=False, message='No email permission granted')
+
+		# Upsert user
+		existing = User.find_by_email(email)
+		if existing:
+			# Resolve id/name/email/role/status from tuple/list/dict safely
+			if isinstance(existing, dict):
+				user_id = existing.get('id')
+				user_name = existing.get('name') or name
+				user_email = existing.get('email')
+				user_role = existing.get('role', 'user')
+				user_status = existing.get('status', 'active')
+			elif isinstance(existing, (tuple, list)):
+				user_id = existing[0] if len(existing) > 0 else None
+				user_name = (existing[1] if len(existing) > 1 else None) or name
+				user_email = existing[2] if len(existing) > 2 else email
+				user_role = existing[4] if len(existing) > 4 else 'user'
+				user_status = existing[5] if len(existing) > 5 else 'active'
+			else:
+				# Fallback: unknown shape, try treating as id
+				user_id = existing if isinstance(existing, int) else None
+				user_name = name
+				user_email = email
+				user_role = 'user'
+				user_status = 'active'
+		else:
+			# Create with a random password
+			random_password = secrets.token_urlsafe(16)
+			user_id = User.create(name, email, random_password)
+			user_name = name
+			user_email = email
+			user_role = 'user'
+			user_status = 'active'
+
+		# Save profile picture if provided
+		if picture and user_id:
+			try:
+				User.update_profile_pic(user_id, picture)
+			except Exception:
+				pass
+
+		if user_status != 'active':
+			return _oauth_popup_response(success=False, message='Account is inactive')
+
+		# Issue JWT like password login
+		token = jwt.encode({
+			'user_id': user_id,
+			'exp': datetime.utcnow() + Config.JWT_ACCESS_TOKEN_EXPIRES
+		}, Config.JWT_SECRET_KEY, algorithm="HS256")
+
+		user_payload = {
+			'id': user_id,
+			'name': user_name,
+			'email': user_email,
+			'role': user_role,
+			'profile_pic': picture
+		}
+		return _oauth_popup_response(success=True, token=token, user=user_payload)
+
+	except requests.HTTPError as he:
+		return _oauth_popup_response(success=False, message=f'HTTP error: {str(he)}')
+	except Exception as e:
+		return _oauth_popup_response(success=False, message=str(e))
+
+
+from typing import Optional, Dict
+
+def _oauth_popup_response(success: bool, message: Optional[str] = None, token: Optional[str] = None, user: Optional[Dict] = None):
+		"""Return a tiny HTML page that posts a message back to the opener and closes the window."""
+		# Determine allowed target origin for postMessage
+		target_origin = Config.FRONTEND_BASE_URL or '*'
+		payload = {
+				'type': 'google-auth-success' if success else 'google-auth-error',
+				'message': message,
+				'token': token,
+				'user': user
+		}
+		import json as _json
+		payload_json = _json.dumps(payload)
+		origin_json = _json.dumps(target_origin)
+		html = f"""<!DOCTYPE html>
+<html><head><meta charset='utf-8'><title>Google Auth</title></head>
+<body style=\"font-family: system-ui, sans-serif; padding: 24px;\">
+<p>{'Success! You can close this window.' if success else 'Authentication failed. You can close this window.'}</p>
+<script>
+	(function() {{
+		var payload = {payload_json};
+		try {{
+			if (window.opener && !window.opener.closed) {{
+				window.opener.postMessage(payload, {origin_json});
+			}}
+		}} catch (e) {{}}
+		window.close();
+	}})();
+</script>
+</body></html>"""
+		resp = make_response(html)
+		resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+		return resp

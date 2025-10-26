@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ThreeBackground from '../components/ThreeBackground';
 import AnimatedLoginHint from '../components/AnimatedLoginHint';
 import ServerWakeUpTimer from '../components/ServerWakeUpTimer';
+import { API_BASE_URL } from '../config/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: '' });
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Allowed email domains (legitimate providers)
   const ALLOWED_DOMAINS = [
@@ -314,6 +316,60 @@ export default function Login() {
     }
   };
 
+  // Google OAuth Login
+  const handleGoogleLogin = () => {
+    setError('');
+    setShowRegisterHint(false);
+    setShowServerWakeUp(false);
+    setGoogleLoading(true);
+
+    const popupWidth = 500;
+    const popupHeight = 600;
+    const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+    const top = window.screenY + (window.outerHeight - popupHeight) / 2.5;
+
+    const popup = window.open(
+      `${API_BASE_URL}/api/auth/google/start`,
+      'google_oauth',
+      `width=${popupWidth},height=${popupHeight},left=${left},top=${top}`
+    );
+
+    if (!popup) {
+      setGoogleLoading(false);
+      setError('Popup blocked. Please allow popups and try again.');
+      return;
+    }
+
+    const onMessage = (event) => {
+      // Optionally validate event.origin against backend or frontend URL
+      const data = event.data || {};
+      if (data.type === 'google-auth-success') {
+        if (data.token) {
+          localStorage.setItem('accessToken', data.token);
+        }
+        // Optionally store user object
+        try { localStorage.setItem('user', JSON.stringify(data.user)); } catch {}
+        window.removeEventListener('message', onMessage);
+        setGoogleLoading(false);
+        navigate('/home');
+      } else if (data.type === 'google-auth-error') {
+        window.removeEventListener('message', onMessage);
+        setGoogleLoading(false);
+        setError(data.message || 'Google authentication was cancelled or failed.');
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', onMessage);
+        setGoogleLoading(false);
+      }
+    }, 500);
+  };
+
   return (
     <div style={styles.container}>
       <ThreeBackground />
@@ -325,6 +381,32 @@ export default function Login() {
           <p style={styles.subtitle}>
             {isLogin ? 'Welcome back!' : 'Create your account'}
           </p>
+        </div>
+
+        {/* Google OAuth button */}
+        <div style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: '2px solid rgba(255,255,255,0.25)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))',
+              color: 'white',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              cursor: 'pointer'
+            }}
+          >
+            <img alt="Google" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style={{ width: 18, height: 18 }} />
+            {googleLoading ? 'Connecting to Google…' : 'Continue with Google'}
+          </button>
         </div>
 
         {error && (
