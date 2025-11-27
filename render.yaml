@@ -3,8 +3,9 @@ services:
   - type: web
     name: voting-backend
     runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: FLASK_ENV
         value: production

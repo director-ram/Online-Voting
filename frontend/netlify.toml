@@ -4,7 +4,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://online-voting-3plz.onrender.com/api/:splat"
+  to = "https://online-voting-7wjo.onrender.com/api/:splat"
   status = 200
 
 [[redirects]]
