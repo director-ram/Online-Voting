@@ -38,6 +38,23 @@ def serve_upload(filename):
     """Serve uploaded profile pictures"""
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+# Root endpoint
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint - returns API information"""
+    return {
+        'message': 'Online Voting System API',
+        'status': 'running',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/api/health',
+            'stats': '/api/stats',
+            'auth': '/api/auth',
+            'candidates': '/api/candidates',
+            'voters': '/api/voters'
+        }
+    }, 200
+
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
 def health_check():
