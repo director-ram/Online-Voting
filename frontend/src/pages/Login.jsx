@@ -340,10 +340,18 @@ export default function Login() {
       return;
     }
 
+    // Cleanup timeout reference
+    let timeoutId = null;
+
     const onMessage = (event) => {
       // Optionally validate event.origin against backend or frontend URL
       const data = event.data || {};
       if (data.type === 'google-auth-success') {
+        // Clear timeout if message received
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
         if (data.token) {
           localStorage.setItem('accessToken', data.token);
         }
@@ -353,6 +361,11 @@ export default function Login() {
         setGoogleLoading(false);
         navigate('/home');
       } else if (data.type === 'google-auth-error') {
+        // Clear timeout if message received
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
         window.removeEventListener('message', onMessage);
         setGoogleLoading(false);
         setError(data.message || 'Google authentication was cancelled or failed.');
@@ -361,13 +374,15 @@ export default function Login() {
 
     window.addEventListener('message', onMessage);
 
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        window.removeEventListener('message', onMessage);
+    // Cleanup: Remove listener after 5 minutes if no response (handles case where user closes popup manually)
+    // Note: We don't check popup.closed to avoid COOP warnings - postMessage will work regardless
+    timeoutId = setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      if (googleLoading) {
         setGoogleLoading(false);
+        setError('Authentication timed out or was cancelled. Please try again.');
       }
-    }, 500);
+    }, 5 * 60 * 1000); // 5 minutes timeout
   };
 
   return (

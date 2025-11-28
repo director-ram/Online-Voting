@@ -424,6 +424,10 @@ def _oauth_popup_response(success: bool, message: Optional[str] = None, token: O
 </body></html>"""
 		resp = make_response(html)
 		resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+		# Set COOP header to allow cross-origin communication with opener
+		resp.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
+		# Set CSP to allow inline scripts (needed for postMessage)
+		resp.headers['Content-Security-Policy'] = "script-src 'self' 'unsafe-inline';"
 		return resp
 
 # Debug endpoint to check OAuth configuration
