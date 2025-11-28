@@ -33,7 +33,9 @@ export default function ServerWakeUpTimer({ onServerReady }) {
 
   const checkServerHealth = async () => {
     try {
-      const response = await fetch('/api/health', {
+      // Use API_BASE_URL from config to ensure correct backend URL
+      const { API_BASE_URL } = await import('../config/api');
+      const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000) // 5 second timeout
       });

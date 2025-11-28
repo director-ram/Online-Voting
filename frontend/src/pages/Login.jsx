@@ -148,8 +148,16 @@ export default function Login() {
             body: JSON.stringify({
               email: formData.email,
               password: formData.password
-            })
+            }),
+            signal: AbortSignal.timeout(10000) // 10 second timeout
           });
+
+          // Check for 504 Gateway Timeout (server sleeping)
+          if (response.status === 504 || response.status === 502) {
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          }
 
           const data = await response.json();
 
@@ -170,9 +178,23 @@ export default function Login() {
           localStorage.setItem('accessToken', data.accessToken);
           navigate('/home');
         } catch (fetchError) {
-          // Check if it's a network error or 504 (server waking up)
+          // Check if it's a network error, timeout, or 504 (server waking up)
           if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
-            // Network error - likely 504 Gateway Timeout
+            // Network error - likely server sleeping
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          } else if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
+            // Request timeout - server is likely sleeping
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          } else if (fetchError.message && (
+            fetchError.message.includes('timeout') || 
+            fetchError.message.includes('network') ||
+            fetchError.message.includes('Failed to fetch')
+          )) {
+            // Connection timeout or network error
             setShowServerWakeUp(true);
             setLoading(false);
             return;
@@ -207,8 +229,16 @@ export default function Login() {
               name: formData.name,
               email: formData.email,
               password: formData.password
-            })
+            }),
+            signal: AbortSignal.timeout(10000) // 10 second timeout
           });
+
+          // Check for 504 Gateway Timeout (server sleeping)
+          if (response.status === 504 || response.status === 502) {
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          }
 
           const data = await response.json();
 
@@ -220,9 +250,23 @@ export default function Login() {
           localStorage.setItem('accessToken', data.accessToken);
           navigate('/home');
         } catch (fetchError) {
-          // Check if it's a network error or 504 (server waking up)
+          // Check if it's a network error, timeout, or 504 (server waking up)
           if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
-            // Network error - likely 504 Gateway Timeout
+            // Network error - likely server sleeping
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          } else if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
+            // Request timeout - server is likely sleeping
+            setShowServerWakeUp(true);
+            setLoading(false);
+            return;
+          } else if (fetchError.message && (
+            fetchError.message.includes('timeout') || 
+            fetchError.message.includes('network') ||
+            fetchError.message.includes('Failed to fetch')
+          )) {
+            // Connection timeout or network error
             setShowServerWakeUp(true);
             setLoading(false);
             return;
@@ -240,6 +284,16 @@ export default function Login() {
   // Handle server ready event from timer
   const handleServerReady = async () => {
     setShowServerWakeUp(false);
+    
+    // If Google login was in progress, retry it
+    if (googleLoading) {
+      setGoogleLoading(false);
+      // Retry Google login
+      handleGoogleLogin();
+      return;
+    }
+    
+    // Otherwise retry regular login/registration
     setLoading(true);
     
     // Retry the login or registration automatically based on current mode
@@ -252,8 +306,16 @@ export default function Login() {
           body: JSON.stringify({
             email: formData.email,
             password: formData.password
-          })
+          }),
+          signal: AbortSignal.timeout(10000)
         });
+
+        // Check for 504 again (shouldn't happen, but just in case)
+        if (response.status === 504 || response.status === 502) {
+          setShowServerWakeUp(true);
+          setLoading(false);
+          return;
+        }
 
         const data = await response.json();
 
@@ -280,8 +342,16 @@ export default function Login() {
             name: formData.name,
             email: formData.email,
             password: formData.password
-          })
+          }),
+          signal: AbortSignal.timeout(10000)
         });
+
+        // Check for 504 again
+        if (response.status === 504 || response.status === 502) {
+          setShowServerWakeUp(true);
+          setLoading(false);
+          return;
+        }
 
         const data = await response.json();
 
@@ -294,9 +364,16 @@ export default function Login() {
         navigate('/home');
       }
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      // If it's still a timeout/network error, show wake-up again
+      if (err.name === 'AbortError' || 
+          err.name === 'TimeoutError' ||
+          (err.message && (err.message.includes('timeout') || err.message.includes('fetch')))) {
+        setShowServerWakeUp(true);
+        setLoading(false);
+      } else {
+        setError(err.message);
+        setLoading(false);
+      }
     }
   };
 
@@ -317,11 +394,34 @@ export default function Login() {
   };
 
   // Google OAuth Login
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setError('');
     setShowRegisterHint(false);
-    setShowServerWakeUp(false);
     setGoogleLoading(true);
+
+    // First, check if server is awake by testing health endpoint
+    try {
+      const healthCheck = await fetch(`${API_BASE_URL}/api/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
+      
+      if (!healthCheck.ok && (healthCheck.status === 504 || healthCheck.status === 502)) {
+        // Server is sleeping, show wake-up message
+        setShowServerWakeUp(true);
+        setGoogleLoading(false);
+        return;
+      }
+    } catch (healthError) {
+      // Server is likely sleeping
+      if (healthError.name === 'AbortError' || 
+          healthError.name === 'TimeoutError' ||
+          (healthError.message && healthError.message.includes('fetch'))) {
+        setShowServerWakeUp(true);
+        setGoogleLoading(false);
+        return;
+      }
+    }
 
     const popupWidth = 500;
     const popupHeight = 600;
