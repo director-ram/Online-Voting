@@ -71,9 +71,21 @@ def apply_as_candidate(current_user):
                 if upload_result:
                     profile_pic_path = upload_result['url']
         
+        # If no profile picture uploaded, use user's existing profile picture (from Google login)
+        if not profile_pic_path:
+            from models.user_model import User
+            user = User.find_by_id(current_user_id)
+            if user:
+                # Extract profile_pic from user data
+                if isinstance(user, dict):
+                    profile_pic_path = user.get('profile_pic')
+                elif isinstance(user, (tuple, list)) and len(user) > 5:
+                    # profile_pic is at index 5 (after id, name, email, role, status)
+                    profile_pic_path = user[5]
+        
         # Check if user already has a candidate record (active or inactive)
-        check_query = "SELECT id, is_active FROM candidates WHERE user_id = %s"
         from models import execute_query
+        check_query = "SELECT id, is_active FROM candidates WHERE user_id = %s"
         existing = execute_query(check_query, (current_user_id,), fetch_one=True)
         
         if existing:
