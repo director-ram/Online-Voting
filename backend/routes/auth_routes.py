@@ -413,21 +413,39 @@ def _oauth_popup_response(success: bool, message: Optional[str] = None, token: O
 <script>
 	(function() {{
 		var payload = {payload_json};
-		try {{
-			if (window.opener && !window.opener.closed) {{
-				window.opener.postMessage(payload, {origin_json});
+		var targetOrigin = {origin_json};
+		
+		// Function to send message
+		function sendMessage() {{
+			try {{
+				if (window.opener) {{
+					// Send postMessage - use '*' if targetOrigin is '*', otherwise use specific origin
+					window.opener.postMessage(payload, targetOrigin === '*' ? '*' : targetOrigin);
+					console.log('PostMessage sent to:', targetOrigin);
+				}} else {{
+					console.warn('window.opener is null');
+				}}
+			}} catch (e) {{
+				console.error('PostMessage error:', e);
 			}}
-		}} catch (e) {{}}
-		window.close();
+		}}
+		
+		// Send message immediately
+		sendMessage();
+		
+		// Also try sending after a small delay to ensure opener is ready
+		setTimeout(sendMessage, 50);
+		
+		// Close window after message is sent
+		setTimeout(function() {{
+			window.close();
+		}}, 200);
 	}})();
 </script>
 </body></html>"""
 		resp = make_response(html)
 		resp.headers['Content-Type'] = 'text/html; charset=utf-8'
-		# Set COOP header to allow cross-origin communication with opener
-		resp.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
-		# Set CSP to allow inline scripts (needed for postMessage)
-		resp.headers['Content-Security-Policy'] = "script-src 'self' 'unsafe-inline';"
+		# Don't set COOP header - let browser handle it naturally to avoid blocking postMessage
 		return resp
 
 # Debug endpoint to check OAuth configuration

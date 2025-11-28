@@ -342,16 +342,33 @@ export default function Login() {
 
     // Cleanup timeout reference
     let timeoutId = null;
+    let messageReceived = false;
 
     const onMessage = (event) => {
-      // Optionally validate event.origin against backend or frontend URL
       const data = event.data || {};
+      
+      // Only process Google auth messages
+      if (data.type !== 'google-auth-success' && data.type !== 'google-auth-error') {
+        return;
+      }
+
+      // Validate origin - accept messages from backend URL or same origin
+      const backendOrigin = new URL(API_BASE_URL).origin;
+      if (event.origin !== backendOrigin && event.origin !== window.location.origin) {
+        // Log for debugging but don't block (in case origin is slightly different)
+        console.warn('Received message from unexpected origin:', event.origin, 'Expected:', backendOrigin);
+        // Still process the message if it's a Google auth message (backend might use '*' origin)
+      }
+
+      messageReceived = true;
+      
+      // Clear timeout if message received
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
       if (data.type === 'google-auth-success') {
-        // Clear timeout if message received
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
         if (data.token) {
           localStorage.setItem('accessToken', data.token);
         }
@@ -361,11 +378,6 @@ export default function Login() {
         setGoogleLoading(false);
         navigate('/home');
       } else if (data.type === 'google-auth-error') {
-        // Clear timeout if message received
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
         window.removeEventListener('message', onMessage);
         setGoogleLoading(false);
         setError(data.message || 'Google authentication was cancelled or failed.');
@@ -377,8 +389,8 @@ export default function Login() {
     // Cleanup: Remove listener after 5 minutes if no response (handles case where user closes popup manually)
     // Note: We don't check popup.closed to avoid COOP warnings - postMessage will work regardless
     timeoutId = setTimeout(() => {
-      window.removeEventListener('message', onMessage);
-      if (googleLoading) {
+      if (!messageReceived) {
+        window.removeEventListener('message', onMessage);
         setGoogleLoading(false);
         setError('Authentication timed out or was cancelled. Please try again.');
       }
