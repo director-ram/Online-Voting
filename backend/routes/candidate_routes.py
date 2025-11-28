@@ -50,7 +50,7 @@ def apply_as_candidate(current_user):
         
         # Validation
         if not description:
-            return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Description is required'}}), 400
+            return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Description (manifesto) is required'}}), 400
         
         if not candidate_name:
             return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Name is required'}}), 400
@@ -160,27 +160,33 @@ def get_candidate_status(current_user):
             return jsonify({
                 'is_candidate': True,
                 'candidate': {
-                    # Align with SELECT in Candidate.get_by_user_id
-                    'id': candidate[0],
-                    'name': candidate[1],
-                    'party': candidate[2],
-                    'position': candidate[3],
-                    'user_id': candidate[4],
-                    'description': candidate[5],
-                    'is_active': candidate[6],
-                    'dob': str(candidate[7]) if len(candidate) > 7 and candidate[7] else None,
-                    'gender': candidate[8] if len(candidate) > 8 else None,
-                    'profile_pic': candidate[9] if len(candidate) > 9 else None,
-                    'created_at': str(candidate[10]) if len(candidate) > 10 and candidate[10] else None,
-                    'user_name': candidate[11] if len(candidate) > 11 else None,
-                    'email': candidate[12] if len(candidate) > 12 else None,
-                    'vote_count': candidate[13] if len(candidate) > 13 else 0
+                    # Align with SELECT in Candidate.get_by_user_id (id, name, party, user_id, description, is_active, profile_pic, created_at, dob, gender, user_name, email, vote_count)
+                    'id': candidate[0] if len(candidate) > 0 else None,
+                    'name': candidate[1] if len(candidate) > 1 else '',
+                    'party': candidate[2] if len(candidate) > 2 else 'Independent',
+                    'user_id': candidate[3] if len(candidate) > 3 else None,
+                    'description': candidate[4] if len(candidate) > 4 else '',
+                    'is_active': candidate[5] if len(candidate) > 5 else True,
+                    'profile_pic': candidate[6] if len(candidate) > 6 else None,
+                    'created_at': str(candidate[7]) if len(candidate) > 7 and candidate[7] else None,
+                    'dob': str(candidate[8]) if len(candidate) > 8 and candidate[8] else None,
+                    'gender': candidate[9] if len(candidate) > 9 else None,
+                    'user_name': candidate[10] if len(candidate) > 10 else None,
+                    'email': candidate[11] if len(candidate) > 11 else None,
+                    'vote_count': int(candidate[12]) if len(candidate) > 12 and candidate[12] is not None else 0
                 }
             }), 200
         elif isinstance(candidate, dict):
+            # Ensure vote_count is an integer
+            candidate_data = candidate.copy()
+            if 'vote_count' in candidate_data:
+                try:
+                    candidate_data['vote_count'] = int(candidate_data['vote_count']) if candidate_data['vote_count'] is not None else 0
+                except (ValueError, TypeError):
+                    candidate_data['vote_count'] = 0
             return jsonify({
                 'is_candidate': True,
-                'candidate': candidate
+                'candidate': candidate_data
             }), 200
         else:
             return jsonify({
@@ -250,32 +256,50 @@ def get_all_candidates():
         candidates = Candidate.get_all()
         print(f"DEBUG: Got candidates: {candidates}")
         
-        if candidates is None or not isinstance(candidates, (list, tuple)):
-            print("DEBUG: No candidates or wrong type, returning empty list")
+        # Handle empty or None results gracefully
+        if not candidates:
+            print("DEBUG: No candidates found, returning empty list")
+            return jsonify({'candidates': []}), 200
+        
+        if not isinstance(candidates, (list, tuple)):
+            print("DEBUG: Wrong type, returning empty list")
             return jsonify({'candidates': []}), 200
         
         # Format candidates WITHOUT vote counts (privacy protection)
         formatted_candidates = []
         for candidate in candidates:
-            if isinstance(candidate, tuple):
+            # Handle dict (RealDictCursor) or tuple results
+            if isinstance(candidate, dict):
                 formatted_candidates.append({
-                    'id': candidate[0],
-                    'name': candidate[1],
+                    'id': candidate.get('id'),
+                    'name': candidate.get('name', ''),
+                    'party': candidate.get('party', 'Independent'),
+                    'user_id': candidate.get('user_id'),
+                    'description': candidate.get('description', candidate.get('manifesto', '')),
+                    'is_active': candidate.get('is_active', True),
+                    'profile_pic': candidate.get('profile_pic'),
+                    'dob': str(candidate.get('dob', '')) if candidate.get('dob') else None,
+                    'gender': candidate.get('gender'),
+                    'user_name': candidate.get('user_name'),
+                    'email': candidate.get('email'),
+                    'created_at': str(candidate.get('created_at', '')) if candidate.get('created_at') else None
+                })
+            elif isinstance(candidate, tuple):
+                formatted_candidates.append({
+                    'id': candidate[0] if len(candidate) > 0 else None,
+                    'name': candidate[1] if len(candidate) > 1 else '',
                     'party': candidate[2] if len(candidate) > 2 else 'Independent',
-                    'position': candidate[3] if len(candidate) > 3 else 'Candidate',
-                    'user_id': candidate[4] if len(candidate) > 4 else None,
-                    'description': candidate[5] if len(candidate) > 5 else '',
-                    'is_active': candidate[6] if len(candidate) > 6 else True,
-                    'dob': str(candidate[7]) if len(candidate) > 7 and candidate[7] else None,
-                    'gender': candidate[8] if len(candidate) > 8 else None,
-                    'profile_pic': candidate[9] if len(candidate) > 9 else None
+                    'user_id': candidate[3] if len(candidate) > 3 else None,
+                    'description': candidate[4] if len(candidate) > 4 else '',
+                    'is_active': candidate[5] if len(candidate) > 5 else True,
+                    'profile_pic': candidate[6] if len(candidate) > 6 else None,
+                    'created_at': str(candidate[7]) if len(candidate) > 7 and candidate[7] else None,
+                    'dob': str(candidate[8]) if len(candidate) > 8 and candidate[8] else None,
+                    'gender': candidate[9] if len(candidate) > 9 else None,
+                    'user_name': candidate[10] if len(candidate) > 10 else None,
+                    'email': candidate[11] if len(candidate) > 11 else None
                     # Note: vote_count removed for privacy - users only see their own in profile
                 })
-            elif isinstance(candidate, dict):
-                # Remove vote_count if present in dict
-                candidate_copy = candidate.copy()
-                candidate_copy.pop('vote_count', None)
-                formatted_candidates.append(candidate_copy)
         
         print(f"DEBUG: Returning {len(formatted_candidates)} formatted candidates")
         return jsonify({
@@ -308,26 +332,26 @@ def get_results():
         
         # Get ALL candidates (including inactive) to check if winner revoked
         all_candidates_query = """
-            SELECT c.id, c.name, c.party, c.position, c.description, c.profile_pic,
+            SELECT c.id, c.name, c.party, c.manifesto as description, c.profile_pic,
                    COUNT(v.id) as vote_count, c.is_active
             FROM candidates c
             LEFT JOIN votes v ON c.id = v.candidate_id AND v.vote_date = CURRENT_DATE
-            GROUP BY c.id, c.name, c.party, c.position, c.description, c.profile_pic, c.is_active
+            GROUP BY c.id, c.name, c.party, c.manifesto, c.profile_pic, c.is_active
             ORDER BY vote_count DESC, c.name ASC
         """
-        all_results = execute_query(all_candidates_query, fetch=True)
+        all_results = execute_query(all_candidates_query, fetch=True) or []
         
         # Get all candidates with their vote counts (only active for display)
         query = """
-            SELECT c.id, c.name, c.party, c.position, c.description, c.profile_pic,
+            SELECT c.id, c.name, c.party, c.manifesto as description, c.profile_pic,
                    COUNT(v.id) as vote_count
             FROM candidates c
             LEFT JOIN votes v ON c.id = v.candidate_id AND v.vote_date = CURRENT_DATE
             WHERE c.is_active = true
-            GROUP BY c.id, c.name, c.party, c.position, c.description, c.profile_pic
+            GROUP BY c.id, c.name, c.party, c.manifesto, c.profile_pic
             ORDER BY vote_count DESC, c.name ASC
         """
-        results = execute_query(query, fetch=True)
+        results = execute_query(query, fetch=True) or []
         
         # Type guard: ensure results is a list/tuple, not None or int
         if not results or not isinstance(results, (list, tuple)):
@@ -345,15 +369,14 @@ def get_results():
         
         for result in results:
             # Type guard: ensure result is tuple or dict with proper length
-            if isinstance(result, tuple) and len(result) >= 7:
-                vote_count = int(result[6]) if result[6] is not None else 0
+            if isinstance(result, tuple) and len(result) >= 6:
+                vote_count = int(result[5]) if len(result) > 5 and result[5] is not None else 0
                 formatted_results.append({
                     'id': result[0],
                     'name': result[1],
-                    'party': result[2] if result[2] else 'Independent',
-                    'position': result[3] if result[3] else 'Candidate',
-                    'description': result[4] if result[4] else '',
-                    'profile_pic': result[5] if result[5] else None,
+                    'party': result[2] if len(result) > 2 and result[2] else 'Independent',
+                    'description': result[3] if len(result) > 3 and result[3] else '',
+                    'profile_pic': result[4] if len(result) > 4 and result[4] else None,
                     'vote_count': vote_count
                 })
                 total_votes += vote_count
@@ -363,7 +386,6 @@ def get_results():
                     'id': result.get('id'),
                     'name': result.get('name'),
                     'party': result.get('party', 'Independent'),
-                    'position': result.get('position', 'Candidate'),
                     'description': result.get('description', ''),
                     'profile_pic': result.get('profile_pic'),
                     'vote_count': vote_count

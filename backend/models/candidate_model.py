@@ -5,16 +5,23 @@ class Candidate:
 	@staticmethod
 	def get_all():
 		"""Get all active candidates WITHOUT vote counts (for public view)"""
-		query = """
-			SELECT c.id, c.name, c.party, c.position, c.user_id, c.description, c.is_active,
-				   c.dob, c.gender, c.profile_pic,
-				   u.name as user_name, u.email
-			FROM candidates c
-			LEFT JOIN users u ON c.user_id = u.id
-			WHERE c.is_active = true
-			ORDER BY c.name
-		"""
-		return execute_query(query, fetch=True)
+		try:
+			query = """
+				SELECT c.id, c.name, c.party, c.user_id, c.manifesto as description, c.is_active,
+					   c.profile_pic, c.created_at, c.dob, c.gender,
+					   u.name as user_name, u.email
+				FROM candidates c
+				LEFT JOIN users u ON c.user_id = u.id
+				WHERE c.is_active = true
+				ORDER BY c.name
+			"""
+			result = execute_query(query, fetch=True)
+			# Return empty list if no results instead of None
+			return result if result else []
+		except Exception as e:
+			print(f"Error in get_all: {e}")
+			# Return empty list on error instead of raising
+			return []
 
 	@staticmethod
 	def get_by_id(candidate_id):
@@ -25,19 +32,23 @@ class Candidate:
 	@staticmethod
 	def get_by_user_id(user_id):
 		"""Get candidate by user ID with vote count for TODAY (daily voting)"""
-		query = """
-			SELECT c.id, c.name, c.party, c.position, c.user_id, c.description, c.is_active,
-				   c.dob, c.gender, c.profile_pic, c.created_at,
-				   u.name as user_name, u.email,
-				   COUNT(v.id) as vote_count
-			FROM candidates c
-			LEFT JOIN users u ON c.user_id = u.id
-			LEFT JOIN votes v ON c.id = v.candidate_id AND v.vote_date = CURRENT_DATE
-			WHERE c.user_id = %s
-			GROUP BY c.id, c.name, c.party, c.position, c.user_id, c.description, c.is_active,
-					 c.dob, c.gender, c.profile_pic, c.created_at, u.name, u.email
-		"""
-		return execute_query(query, (user_id,), fetch_one=True)
+		try:
+			query = """
+				SELECT c.id, c.name, c.party, c.user_id, c.manifesto as description, c.is_active,
+					   c.profile_pic, c.created_at, c.dob, c.gender,
+					   u.name as user_name, u.email,
+					   COUNT(v.id) as vote_count
+				FROM candidates c
+				LEFT JOIN users u ON c.user_id = u.id
+				LEFT JOIN votes v ON c.id = v.candidate_id AND v.vote_date = CURRENT_DATE
+				WHERE c.user_id = %s
+				GROUP BY c.id, c.name, c.party, c.user_id, c.manifesto, c.is_active,
+						 c.profile_pic, c.created_at, c.dob, c.gender, u.name, u.email
+			"""
+			return execute_query(query, (user_id,), fetch_one=True)
+		except Exception as e:
+			print(f"Error in get_by_user_id: {e}")
+			return None
 
 	@staticmethod
 	def create_from_user(user_id, description, candidate_name=None, dob=None, gender=None, party='Independent', profile_pic=None):
@@ -65,16 +76,16 @@ class Candidate:
 			else:
 				candidate_name = 'Unknown'
 
-		# Create candidate entry with all fields
+		# Create candidate entry with all fields (including dob and gender)
 		query = """
-			INSERT INTO candidates (user_id, name, description, is_active, party, position, dob, gender, profile_pic)
-			VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+			INSERT INTO candidates (user_id, name, manifesto, is_active, party, profile_pic, dob, gender)
+			VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 			RETURNING id
 		"""
 
 		row = execute_query(
 			query,
-			(user_id, candidate_name, description, True, party or 'Independent', 'Candidate', dob, gender, profile_pic),
+			(user_id, candidate_name, description, True, party or 'Independent', profile_pic, dob, gender),
 			returning=True
 		)
 
@@ -83,27 +94,27 @@ class Candidate:
 		return row["id"] if isinstance(row, dict) else (row[0] if isinstance(row, (list, tuple)) else row)
 
 	@staticmethod
-	def create(name, party, position):
+	def create(name, party, manifesto=''):
 		"""Create a new candidate (admin function)"""
 		query = """
-			INSERT INTO candidates (name, party, position, is_active)
+			INSERT INTO candidates (name, party, manifesto, is_active)
 			VALUES (%s, %s, %s, %s)
 			RETURNING id
 		"""
-		row = execute_query(query, (name, party, position, True), returning=True)
+		row = execute_query(query, (name, party, manifesto, True), returning=True)
 		if row is None:
 			return None
 		return row["id"] if isinstance(row, dict) else (row[0] if isinstance(row, (list, tuple)) else row)
 
 	@staticmethod
-	def update(candidate_id, name, party, position):
+	def update(candidate_id, name, party, manifesto=''):
 		"""Update a candidate"""
 		query = """
 			UPDATE candidates
-			SET name = %s, party = %s, position = %s
+			SET name = %s, party = %s, manifesto = %s
 			WHERE id = %s
 		"""
-		return execute_query(query, (name, party, position, candidate_id))
+		return execute_query(query, (name, party, manifesto, candidate_id))
 
 	@staticmethod
 	def delete(candidate_id):
@@ -204,7 +215,7 @@ class Candidate:
 		params = []
 
 		if description is not None:
-			update_fields.append("description = %s")
+			update_fields.append("manifesto = %s")
 			params.append(description)
 		
 		if candidate_name is not None:

@@ -141,8 +141,7 @@ def get_my_vote(current_user):
                 candidate_data = {
                     'id': candidate[0],
                     'name': candidate[1],
-                    'party': candidate[2],
-                    'position': candidate[3] if len(candidate) > 3 else None
+                    'party': candidate[2] if len(candidate) > 2 else 'Independent'
                 }
             elif isinstance(candidate, dict):
                 candidate_data = candidate
