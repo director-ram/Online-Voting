@@ -22,7 +22,7 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        value: "*"
+        value: "https://online-voting-system-mini.netlify.app,*"
     healthCheckPath: /api/candidates
 
 databases:

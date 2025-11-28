@@ -56,9 +56,10 @@ def root():
     }, 200
 
 # Health check endpoint
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
-    return {'status': 'ok', 'message': 'Backend is running'}, 200
+    from flask import jsonify
+    return jsonify({'status': 'ok', 'message': 'Backend is running'}), 200
 
 # Stats endpoint for dashboard
 @app.route('/api/stats', methods=['GET'])

@@ -179,8 +179,19 @@ export default function Login() {
           navigate('/home');
         } catch (fetchError) {
           // Check if it's a network error, timeout, or 504 (server waking up)
-          if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
-            // Network error - likely server sleeping
+          // But NOT a CORS error (CORS error means server is up, just misconfigured)
+          const isCorsError = fetchError.message && (
+            fetchError.message.includes('CORS') || 
+            fetchError.message.includes('Access-Control-Allow-Origin')
+          );
+          
+          if (isCorsError) {
+            // CORS error - server is up, just CORS issue - show regular error
+            setError('Server configuration error. Please contact support.');
+            setLoading(false);
+            return;
+          } else if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+            // Network error - likely server sleeping (but not CORS)
             setShowServerWakeUp(true);
             setLoading(false);
             return;
@@ -191,10 +202,10 @@ export default function Login() {
             return;
           } else if (fetchError.message && (
             fetchError.message.includes('timeout') || 
-            fetchError.message.includes('network') ||
-            fetchError.message.includes('Failed to fetch')
+            (fetchError.message.includes('network') && !fetchError.message.includes('CORS')) ||
+            (fetchError.message.includes('Failed to fetch') && !fetchError.message.includes('CORS'))
           )) {
-            // Connection timeout or network error
+            // Connection timeout or network error (but not CORS)
             setShowServerWakeUp(true);
             setLoading(false);
             return;
@@ -251,8 +262,19 @@ export default function Login() {
           navigate('/home');
         } catch (fetchError) {
           // Check if it's a network error, timeout, or 504 (server waking up)
-          if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
-            // Network error - likely server sleeping
+          // But NOT a CORS error (CORS error means server is up, just misconfigured)
+          const isCorsError = fetchError.message && (
+            fetchError.message.includes('CORS') || 
+            fetchError.message.includes('Access-Control-Allow-Origin')
+          );
+          
+          if (isCorsError) {
+            // CORS error - server is up, just CORS issue - show regular error
+            setError('Server configuration error. Please contact support.');
+            setLoading(false);
+            return;
+          } else if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+            // Network error - likely server sleeping (but not CORS)
             setShowServerWakeUp(true);
             setLoading(false);
             return;
@@ -263,10 +285,10 @@ export default function Login() {
             return;
           } else if (fetchError.message && (
             fetchError.message.includes('timeout') || 
-            fetchError.message.includes('network') ||
-            fetchError.message.includes('Failed to fetch')
+            (fetchError.message.includes('network') && !fetchError.message.includes('CORS')) ||
+            (fetchError.message.includes('Failed to fetch') && !fetchError.message.includes('CORS'))
           )) {
-            // Connection timeout or network error
+            // Connection timeout or network error (but not CORS)
             setShowServerWakeUp(true);
             setLoading(false);
             return;
@@ -364,10 +386,20 @@ export default function Login() {
         navigate('/home');
       }
     } catch (err) {
-      // If it's still a timeout/network error, show wake-up again
-      if (err.name === 'AbortError' || 
+      // Check if it's a CORS error (server is up) vs actual server down
+      const isCorsError = err.message && (
+        err.message.includes('CORS') || 
+        err.message.includes('Access-Control-Allow-Origin')
+      );
+      
+      if (isCorsError) {
+        // CORS error - server is up, just CORS issue
+        setError('Server configuration error. Please contact support.');
+        setLoading(false);
+      } else if (err.name === 'AbortError' || 
           err.name === 'TimeoutError' ||
           (err.message && (err.message.includes('timeout') || err.message.includes('fetch')))) {
+        // Still a timeout/network error, show wake-up again
         setShowServerWakeUp(true);
         setLoading(false);
       } else {
@@ -394,34 +426,11 @@ export default function Login() {
   };
 
   // Google OAuth Login
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     setError('');
     setShowRegisterHint(false);
+    setShowServerWakeUp(false);
     setGoogleLoading(true);
-
-    // First, check if server is awake by testing health endpoint
-    try {
-      const healthCheck = await fetch(`${API_BASE_URL}/api/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000) // 5 second timeout
-      });
-      
-      if (!healthCheck.ok && (healthCheck.status === 504 || healthCheck.status === 502)) {
-        // Server is sleeping, show wake-up message
-        setShowServerWakeUp(true);
-        setGoogleLoading(false);
-        return;
-      }
-    } catch (healthError) {
-      // Server is likely sleeping
-      if (healthError.name === 'AbortError' || 
-          healthError.name === 'TimeoutError' ||
-          (healthError.message && healthError.message.includes('fetch'))) {
-        setShowServerWakeUp(true);
-        setGoogleLoading(false);
-        return;
-      }
-    }
 
     const popupWidth = 500;
     const popupHeight = 600;

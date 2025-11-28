@@ -37,18 +37,36 @@ export default function ServerWakeUpTimer({ onServerReady }) {
       const { API_BASE_URL } = await import('../config/api');
       const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+        mode: 'cors' // Explicitly request CORS
       });
       
       if (response.ok) {
         onServerReady?.();
       } else {
-        // Still not ready, check again in 3 seconds
-        setTimeout(checkServerHealth, 3000);
+        // Check if it's a 504/502 (server sleeping) vs other error
+        if (response.status === 504 || response.status === 502) {
+          // Still not ready, check again in 3 seconds
+          setTimeout(checkServerHealth, 3000);
+        } else {
+          // Other error, assume server is ready (might be auth issue, etc.)
+          onServerReady?.();
+        }
       }
     } catch (error) {
-      // Still not ready, check again in 3 seconds
-      setTimeout(checkServerHealth, 3000);
+      // If it's a CORS error, the server might be up but CORS not configured
+      // If it's a network error, server is likely still sleeping
+      if (error.message && error.message.includes('CORS')) {
+        // CORS error - server is likely up, just CORS issue
+        // Try to proceed anyway
+        onServerReady?.();
+      } else if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        // Timeout - server still sleeping, check again
+        setTimeout(checkServerHealth, 3000);
+      } else {
+        // Other network error - check again
+        setTimeout(checkServerHealth, 3000);
+      }
     }
   };
 
